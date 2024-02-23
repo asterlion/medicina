@@ -1,49 +1,68 @@
 import React, { useState } from 'react';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Modal, Button, Form, Alert, Spinner } from 'react-bootstrap';
 import axios from 'axios';
-import { useParams } from "react-router-dom";
 
-function CustomModal({ show, onHide }) {
-    const { id } = useParams(); // Используйте id при необходимости для запросов к API
+const CustomModal = ({ show, onHide }) => {
     const [formData, setFormData] = useState({
         phone: '',
         full_name: '',
         doctor_name: '',
         message: '',
-        user_id: id // Добавлено user_id в состояние формы
     });
-
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const handleInputChange = (event) => {
+        const { name, value } = event.target; // Destructure the name and value from the event target
         setFormData(prevState => ({
             ...prevState,
-            [name]: value,
+            [name]: value // Dynamically update the right property in your state based on the input name
         }));
     };
 
-    // Убедитесь, что user_id обновляется, если id изменится во время жизненного цикла компонента
-    // Это может быть полезно, если компонент используется на странице, где id может изменяться без перезагрузки компонента
-    React.useEffect(() => {
-        setFormData(formData => ({ ...formData, user_id: id }));
-    }, [id]);
-
-    const sendDataToServer = () => {
-        const apiUrl = `http://your-api-endpoint.com/api/path`; // Замените на ваш фактический API endpoint
-        axios.post(apiUrl, formData, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem("token")}` // Если требуется авторизация
-            }
-        })
-            .then(response => {
-                console.log(response.data);
-                onHide(); // Закрыть модальное окно при успехе
-            })
-            .catch(error => {
-                console.error("There was an error!", error);
-            });
+    const validateFormData = () => {
+        // Простая валидация: проверяем, что обязательные поля не пустые
+        if (!formData.phone || !formData.full_name) {
+            setError('Phone and Full Name are required.');
+            return false;
+        }
+        return true;
     };
 
+    const sendDataToServer = async () => {
+        // Предполагаем, что токен хранится в localStorage
+        const token = localStorage.getItem('token');
 
+        if (!token) {
+            setError('Authentication token is missing. Please login again.');
+            setIsLoading(false);
+            return;
+        }
+
+        if (!validateFormData()) return; // Проверяем данные перед отправкой
+
+        setIsLoading(true); // Показываем индикатор загрузки
+        setError(''); // Очищаем ошибки
+
+        try {
+            const apiUrl = 'http://localhost:8082/api/v1/appointmentRequests/';
+            const response = await axios.post(apiUrl, formData, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + localStorage.getItem("token")
+                },
+            });
+            console.log(response.data);
+            setIsSuccess(true); // Успешное завершение
+        } catch (error) {
+            console.error("There was an error!", error);
+            setError(`An error occurred while sending data: ${error.response ? error.response.data.message : error.message}`);
+        } finally {
+            setIsLoading(false); // Скрываем индикатор загрузки
+        }
+    };
+
+// Далее, ваш компонент продолжает работать как обычно, используя обновленную функцию `sendDataToServer`
 
     return (
         <Modal show={show} onHide={onHide}>
@@ -51,34 +70,37 @@ function CustomModal({ show, onHide }) {
                 <Modal.Title>Appointment Request</Modal.Title>
             </Modal.Header>
             <Modal.Body>
+                {error && <Alert variant="danger">{error}</Alert>}
                 <Form>
                     <Form.Group controlId="formPhone">
                         <Form.Label>Phone</Form.Label>
-                        <Form.Control type="text" placeholder="Enter phone" name="phone" value={formData.phone} onChange={handleInputChange} />
+                        <Form.Control type="text" placeholder="Enter phone" name="phone" value={formData.phone || ''} onChange={handleInputChange} />
                     </Form.Group>
 
                     <Form.Group controlId="formFullName">
                         <Form.Label>Full Name</Form.Label>
-                        <Form.Control type="text" placeholder="Enter full name" name="full_name" value={formData.full_name} onChange={handleInputChange} />
+                        <Form.Control type="text" placeholder="Enter full name" name="full_name" value={formData.full_name || ''} onChange={handleInputChange} />
                     </Form.Group>
 
                     <Form.Group controlId="formDoctorName">
                         <Form.Label>Doctor Name</Form.Label>
-                        <Form.Control type="text" placeholder="Doctor's name (optional)" name="doctor_name" value={formData.doctor_name} onChange={handleInputChange} />
+                        <Form.Control type="text" placeholder="Doctor's name (optional)" name="doctor_name" value={formData.doctor_name || ''} onChange={handleInputChange} />
                     </Form.Group>
 
                     <Form.Group controlId="formMessage">
                         <Form.Label>Message</Form.Label>
-                        <Form.Control as="textarea" rows={3} placeholder="Enter message (optional)" name="message" value={formData.message} onChange={handleInputChange} />
+                        <Form.Control as="textarea" rows={3} placeholder="Enter message (optional)" name="message" value={formData.message || ''} onChange={handleInputChange} />
                     </Form.Group>
                 </Form>
             </Modal.Body>
             <Modal.Footer>
                 <Button variant="secondary" onClick={onHide}>Close</Button>
-                <Button variant="primary" onClick={sendDataToServer}>Send Data</Button>
+                <Button variant="primary" onClick={sendDataToServer} disabled={isLoading}>
+                    {isLoading ? <Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> : 'Send Data'}
+                </Button>
             </Modal.Footer>
         </Modal>
     );
-}
+};
 
 export default CustomModal;
