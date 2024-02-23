@@ -30,4 +30,7 @@ public class Doctor extends User {
     private TypeAppointment typeAppointment;
     @OneToMany(mappedBy = "doctor")
     List<Order> orders = new ArrayList<>();
+    @OneToMany(mappedBy = "doctor")
+    List<AppointmentRequest> appointmentRequests = new ArrayList<>();
+
 }
